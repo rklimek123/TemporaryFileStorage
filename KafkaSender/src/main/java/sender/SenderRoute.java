@@ -16,6 +16,12 @@ public class SenderRoute extends RouteBuilder {
     @Value("${kafka.port}")
     String kafkaPort;
 
+    @Value("${kafka.topic}")
+    String kafkaTopic;
+
+    @Value("${kafka.serializer}")
+    String kafkaSerializer;
+
     @Value("${zookeeper.address}")
     String zookeeperAddress;
 
@@ -24,15 +30,22 @@ public class SenderRoute extends RouteBuilder {
 
     @Override
     public void configure() throws Exception {
-        String topicName = "topic=javainuse-topic";
+        /*
+        String topicName = new StringBuilder("topic=").append(kafkaTopic).toString();
         String kafkaServer = new StringBuilder("kafka:").append(kafkaAddress).append(":").append(kafkaPort).toString();
         String zooKeeperHost = new StringBuilder("zookeeperHost=").append(zookeeperAddress)
                                         .append("&zookeeperPort=").append(zookeeperPort).toString();
-        String serializerClass = "serializerClass=kafka.serializer.StringEncoder";
+        String serializerClass = new StringBuilder("serializerClass=").append(kafkaSerializer).toString();
 
-        String toKafka = new StringBuilder().append(kafkaServer).append("?").append(topicName)
+        String toKafka = new StringBuilder().append(kafkaServer).append("?")
+                                            .append(topicName)
                                             .append("&").append(zooKeeperHost)
-                                            .append("&").append(serializerClass).toString();
+                                            .append("&").append(serializerClass)
+                                            .toString();
+*/
+        String toKafka = new StringBuilder("kafka:").append(kafkaTopic).append("?")
+                .append("brokers=").append(kafkaAddress).append(":").append(kafkaPort)
+                .toString();
 
         from("file://{{directory}}?delete=true")
                 .process(new FileMetadataHeaderProcessor())
@@ -40,8 +53,8 @@ public class SenderRoute extends RouteBuilder {
                 .to("direct://uploadFile");
 
         from("direct://uploadFile")
-                .split().tokenize("\n")
-                .log("Sending file ${header.filename} to Kafka")
+                .process(new KafkaHeadersProcessor())
+                .log("Sending file ${header.kafka.KEY} to Kafka")
                 .to(toKafka);
     }
 }
