@@ -1,13 +1,5 @@
 version: '3.4'
 services:
-  kafka_sender:
-    build: KafkaSender/.
-    networks:
-      vpcbr:
-        ipv4_address: 10.4.0.2
-    volumes:
-      - ./KafkaSender:/io
-
   zookeeper:
     image: wurstmeister/zookeeper
     ports:
@@ -29,17 +21,39 @@ services:
       KAFKA_LISTENERS: INSIDE://:9092,OUTSIDE://localhost:29092
       KAFKA_ADVERTISED_LISTENERS: INSIDE://:9092,OUTSIDE://localhost:29092
       KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
-      KAFKA_CREATE_TOPICS: javainuse-topic:1:3
+      KAFKA_CREATE_TOPICS: javainuse-topic:1:1
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     networks:
       vpcbr:
         ipv4_address: 10.4.1.1
 
-  receiver_to_gdrive:
-    build: ReceiverToGDrive/.
+  kafka_sender:
+    build: KafkaSender/.
+    depends_on:
+      - kafka
+    networks:
+      vpcbr:
+        ipv4_address: 10.4.0.2
+    volumes:
+      - ./KafkaSender:/io
+  
+  kafka_receiver:
+    build: KafkaReceiver/.
+    depends_on:
+      - kafka
     networks:
       vpcbr:
         ipv4_address: 10.4.0.3
+    volumes:
+      - ./KafkaReceiver:/io
+
+  receiver_to_gdrive:
+    build: ReceiverToGDrive/.
+    depends_on:
+      - kafka
+    networks:
+      vpcbr:
+        ipv4_address: 10.4.0.4
     volumes:
       - ./ReceiverToGDrive:/io
 

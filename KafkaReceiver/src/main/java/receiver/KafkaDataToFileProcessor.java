@@ -1,11 +1,10 @@
-package receiverGDrive;
+package receiver;
 
 import java.io.File;
 import java.io.FileWriter;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
-import org.springframework.beans.factory.annotation.Value;
 
 public class KafkaDataToFileProcessor implements Processor {
 

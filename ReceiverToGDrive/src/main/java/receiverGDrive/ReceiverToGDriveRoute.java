@@ -20,9 +20,6 @@ public class ReceiverToGDriveRoute extends RouteBuilder {
     @Value("${client.secret}")
     String clientSecret;
 
-    @Value("${limit.extension}")
-    String limit_extension;
-
     @Value("${kafka.address}")
     String kafkaAddress;
 
@@ -32,26 +29,17 @@ public class ReceiverToGDriveRoute extends RouteBuilder {
     @Value("${kafka.topic}")
     String kafkaTopic;
 
-    @Value("${kafka.serializer}")
-    String kafkaSerializer;
+    @Value("${directory}")
+    String directory;
 
-    @Value("${zookeeper.address}")
-    String zookeeperAddress;
-
-    @Value("${zookeeper.port}")
-    String zookeeperPort;
+    @Value("${limit.extension}")
+    String limit_extension;
 
     @Override
     public void configure() throws Exception {
-        String topicName = new StringBuilder("topic=").append(kafkaTopic).toString();
-        String kafkaServer = new StringBuilder("kafka:").append(kafkaAddress).append(":").append(kafkaPort).toString();
-        String zooKeeperHost = new StringBuilder("zookeeperHost=").append(zookeeperAddress)
-                                        .append("&zookeeperPort=").append(zookeeperPort).toString();
-        String serializerClass = new StringBuilder("serializerClass=").append(kafkaSerializer).toString();
-
-        String fromKafka = new StringBuilder().append(kafkaServer).append("?").append(topicName)
-                .append("&").append(zooKeeperHost)
-                .append("&").append(serializerClass).toString();
+        String fromKafka = new StringBuilder("kafka:").append(kafkaTopic).append("?")
+                .append("brokers=").append(kafkaAddress).append(":").append(kafkaPort)
+                .toString();
 
         GoogleDriveConfiguration configuration = new GoogleDriveConfiguration();
         configuration.setAccessToken(accessToken);
@@ -63,16 +51,23 @@ public class ReceiverToGDriveRoute extends RouteBuilder {
         component.setConfiguration(configuration);
         context.addComponent("google-drive", component);
 
+        // Receive file from Kafka and save
         from(fromKafka)
-                .process(new KafkaDataToFileProcessor())
-                .log("Checking if file ${header.filename} has extension " + limit_extension)
-                .log("proceed if ${header.extension} == " + limit_extension)
-                .filter(simple("${header.extension} == " + limit_extension))
-                .to("direct://uploadFile");
+            .process(new KafkaDataToFileProcessor(directory))
+            .log("Got file from Kafka: ${header.kafka.KEY}");
 
+        // ↓ Fragment copied from the previous GoogleDriveUploader project ↓
+        // Get file on disk and filter extension
+        from("file://{{directory}}?delete=true")
+            .process(new FileMetadataHeaderProcessor())
+            .log("Checking if file ${header.filename} has extension " + limit_extension)
+            .filter(simple("${header.extension} == " + limit_extension))
+            .to("direct://uploadFile");
+
+        // Upload file to GoogleDrive
         from("direct://uploadFile")
-                .process(new FileToGoogleDriveFileProcessor())
-                .log("Sending file ${header.CamelGoogleDrive.content}")
-                .to("google-drive://drive-files/insert");
-    }
+            .process(new FileToGoogleDriveFileProcessor())
+            .log("Sending file ${header.CamelGoogleDrive.content}")
+            .to("google-drive://drive-files/insert");
+   }
 }
